@@ -21,15 +21,15 @@ const AUTH_OPTIONS = {
   clientSecret: config.CLIENT_SECRET,
 };
 function verifyCallback(accessToken, refreshToken, profile, done) {
-  console.log("Profile: ", profile);
+  //   console.log("Profile: ", profile);
   done(null, profile);
 }
 passport.use(new Strategy(AUTH_OPTIONS, verifyCallback));
 passport.serializeUser((user, done) => {
-  done(null, user);
+  done(null, user.id);
 });
-passport.deserializeUser((obj, done) => {
-  done(null, obj);
+passport.deserializeUser((id, done) => {
+  done(null, id);
 });
 const app = express();
 app.use(helmet());
@@ -50,8 +50,10 @@ app.use((req, res, next) => {
   next();
 });
 app.use(passport.initialize());
+app.use(passport.session());
 function checkIsLoggedIn(req, res, next) {
-  const isLoggedIn = true;
+  console.log("Current user is ", req.user);
+  const isLoggedIn = req.isAuthenticated() && req.user;
   if (!isLoggedIn) {
     return res.status(401).json({
       error: "You must log in.",
@@ -69,14 +71,23 @@ app.get(
   "/auth/google/callback",
   passport.authenticate("google", {
     failureRedirect: "/failure",
-    failureSuccess: "/",
-    session: false,
+    successRedirect: "/",
+    session: true,
   }),
   (req, res) => {
     console.log("Google called us back");
   }
 );
-app.get("/auth/logout", (req, res) => {});
+app.get("/auth/logout", (req, res, next) => {
+  // remove req.user and clear session
+  req.logout((err) => {
+    if (err) {
+      return next(err);
+    }
+    res.redirect("/");
+  });
+  return res.redirect("/");
+});
 app.get("/secret", checkIsLoggedIn, (req, res) => {
   return res.send("your personal secret value is 42.");
 });
